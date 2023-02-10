@@ -20,7 +20,7 @@ int64_t duration(Time start, Time end) {
 
 int test() {
 
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
     return 0;
 }
@@ -31,7 +31,7 @@ int main(int argc, char** argv) {
     Clock clock;
     Time start, end;
 
-    int N = 100;
+    int N = 10000;
 
     std::vector<int> resSingle(N);    
     start = clock.now();
@@ -42,17 +42,16 @@ int main(int argc, char** argv) {
 
     end = clock.now();
 
-    std::cout << "Single thread time : " << duration(start, end) << '\n'; 
+    std::cout << "Single thread time : \t" << duration(start, end) << '\n'; 
     
     std::vector<std::future<int>> resMulti(N);
 
-    JobSystem jobSys;
-    jobSys.StartUp();
+    JobSystem::StartUp();
 
     start = clock.now();
     for (size_t i = 0; i < N; i++)
     {
-        resMulti[i] = jobSys.Submit(test);
+        resMulti[i] = JobSystem::Submit(test);
     }
     for (size_t i = 0; i < N; i++)
     {
@@ -61,9 +60,9 @@ int main(int argc, char** argv) {
     
     end = clock.now();
 
-    std::cout << "Multi thread time : " << duration(start, end) << '\n'; 
+    std::cout << "Multi thread time : \t" << duration(start, end) << '\n'; 
 
-    jobSys.ShutDown();
+    JobSystem::ShutDown();
 
     return 0;
 }

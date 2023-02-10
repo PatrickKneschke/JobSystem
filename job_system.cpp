@@ -2,6 +2,9 @@
 #include "job_system.h"
 
 
+std::unique_ptr<JobSystem> JobSystem::sInstance = nullptr;
+
+
 JobSystem::JobSystem(const size_t numThreads) : mActive {false}, mNumThreads {numThreads}, mThreads {}, mJobQueue {} {
 
     if (mNumThreads == 0)
@@ -16,14 +19,19 @@ JobSystem::~JobSystem() {
 }
 
 
-void JobSystem::StartUp() {
+void JobSystem::StartUp(size_t numThreads) {
 
-    mActive = true;
+    if (!sInstance)
+    {
+        sInstance.reset( new JobSystem(numThreads) );
+    }
+    
+    sInstance->mActive.store(true, std::memory_order_release);
     try
     {
-        for(size_t i = 0; i < mNumThreads; i++)
+        for(size_t i = 0; i < sInstance->mNumThreads; i++)
         {
-            mThreads.emplace_back( &JobSystem::WorkerThread, this );
+            sInstance->mThreads.emplace_back( &JobSystem::WorkerThread, sInstance.get() );
         }
     }
     catch(...)
@@ -36,23 +44,25 @@ void JobSystem::StartUp() {
 
 void JobSystem::ShutDown() {
     
-    mActive = false;
-    mCondVar.notify_all();
+    sInstance->mActive.store(false, std::memory_order_release);
+    sInstance->mCondVar.notify_all();
 
-    for(auto& thread : mThreads)
+    for(auto& thread : sInstance->mThreads)
     {
         if(thread.joinable())
         {
             thread.join();
         }
     }
+
+    sInstance.reset(nullptr);
 }
 
 
 void JobSystem::WorkerThread() {
 
     std::unique_ptr<IJobDecl> job;
-    while (mActive)
+    while (mActive.load(std::memory_order_acquire))
     {
         if (PopJob(job))
         {
@@ -75,10 +85,10 @@ bool JobSystem::PopJob(std::unique_ptr<IJobDecl> &out) {
     std::unique_lock<std::mutex> lock{mQueueAccess};
     mCondVar.wait(lock, [this]()
     {
-        return !mJobQueue.empty() || !mActive;
+        return !mJobQueue.empty() || !mActive.load(std::memory_order_acquire);
     });
     
-    if(!mActive)
+    if(!mActive.load(std::memory_order_acquire))
     {
         return false;
     }

@@ -15,11 +15,18 @@
 #include <vector>
 
 
+enum Priority {
+
+    HIGH, NORMAL, LOW
+};
+
+
 class IJobDecl {
 
 public:
     virtual void run() = 0;
 };
+
 
 template<typename Task>
 class JobDecl : public IJobDecl {
@@ -41,14 +48,13 @@ class JobSystem {
 
 public:
 
-    JobSystem(const size_t numThreads = 0);
+    static void StartUp(size_t numThreads = 0);
+    static void ShutDown();
+
     ~JobSystem();
 
-    void StartUp();
-    void ShutDown();
-
     template <typename Func, typename... Args>
-    auto Submit(Func&& func, Args&&... args) {
+    static auto Submit(Func&& func, Args&&... args) {
 
         auto callable = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
 
@@ -58,12 +64,14 @@ public:
         Task task(std::move(callable));
         std::future<ResultType> result = task.get_future();
 
-        PushJob( std::make_unique<JobDecl<Task>>(std::move(task)) );
+        sInstance->PushJob( std::make_unique<JobDecl<Task>>(std::move(task)) );
         
         return result;
     }
 
 private:
+
+    JobSystem(const size_t numThreads);
 
     void WorkerThread();
 
@@ -71,6 +79,8 @@ private:
     bool PopJob(std::unique_ptr<IJobDecl> &out);
     void ClearJobs();
 
+    // job system instance
+    static std::unique_ptr<JobSystem> sInstance;
 
     // job system initialized and ready for job submissions
     std::atomic_bool mActive;
