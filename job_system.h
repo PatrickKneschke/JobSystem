@@ -16,6 +16,10 @@
 #include <vector>
 
 
+/* @brief Singleton class to manage job execution. Stores job declarations in job queues based on priority.
+ *
+ * @class
+ */
 class JobSystem {
 
 public:
@@ -53,12 +57,31 @@ private:
 
 public:
 
+    /* @brief Initializes the job system instance and creates the threadpool.
+     *
+     * @param numThreads    The number of threads in the pool. If zero the hardware concurrency is chosen by default.
+     */
     static void StartUp(size_t numThreads = 0);
+
+    /* @brief Joins all running threads and destroys job system instance.
+     */
     static void ShutDown();
+
+    /* @brief Clears all job queues.
+     */
     static void ClearJobs();
 
     ~JobSystem();    
 
+    /* @brief Creates a job declaration for the given task and adds it to a job queue based on priority. 
+     *        Wraps the function into a std::packaged_task and returns the associated std::future.
+     *
+     * @param priority    The jobs priority (high, normal or low).
+     * @param func    The function to execute.
+     * @param args    The arguments to pass tot he function.
+     * 
+     * @return std::future of teh return tpe of the task.
+     */
     template <typename Func, typename... Args>
     static auto Submit(const Priority priority, Func&& func, Args&&... args) {
 
@@ -93,6 +116,9 @@ private:
 
     JobSystem(const size_t numThreads);
 
+    /* @brief Runs on each thread until job system is shut down.
+     *        Looks for a task to execute from high to low priority.
+     */
     void WorkerThread();
 
     // job system instance
