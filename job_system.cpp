@@ -45,7 +45,6 @@ void JobSystem::StartUp(size_t numThreads) {
 void JobSystem::ShutDown() {
     
     sInstance->mActive.store(false, std::memory_order_release);
-    sInstance->mCondVar.notify_all();
 
     for(auto& thread : sInstance->mThreads)
     {
@@ -64,7 +63,7 @@ void JobSystem::WorkerThread() {
     std::unique_ptr<IJobDecl> job;
     while (mActive.load(std::memory_order_acquire))
     {
-        if (PopJob(job))
+        if (mJobQueue.Pop(job))
         {
             job->run();
         }
@@ -72,37 +71,7 @@ void JobSystem::WorkerThread() {
 }
 
 
-void JobSystem::PushJob(std::unique_ptr<IJobDecl> &&job) {
-
-    std::lock_guard<std::mutex> lock{mQueueAccess};
-    mJobQueue.push(std::move(job));
-    mCondVar.notify_one();
-}
-    
-    
-bool JobSystem::PopJob(std::unique_ptr<IJobDecl> &out) {
-
-    std::unique_lock<std::mutex> lock{mQueueAccess};
-    mCondVar.wait(lock, [this]()
-    {
-        return !mJobQueue.empty() || !mActive.load(std::memory_order_acquire);
-    });
-    
-    if(!mActive.load(std::memory_order_acquire))
-    {
-        return false;
-    }
-
-    out = std::move(mJobQueue.front());
-    mJobQueue.pop();
-
-    return true;
-}
-
-
 void JobSystem::ClearJobs() {
 
-    std::lock_guard<std::mutex> lock{mQueueAccess};
-    mJobQueue = {};
-    mCondVar.notify_all();
+    sInstance->mJobQueue.Clear();
 }

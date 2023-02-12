@@ -1,9 +1,10 @@
 #pragma once
 
 
+#include "concurrent_queue.h"
+
 #include <algorithm>
 #include <atomic>
-#include <condition_variable>
 #include <functional>
 #include <future>
 #include <memory>
@@ -15,43 +16,48 @@
 #include <vector>
 
 
-enum Priority {
-
-    HIGH, NORMAL, LOW
-};
-
-
-class IJobDecl {
+class JobSystem {
 
 public:
-    virtual void run() = 0;
-};
 
+    enum class Priority : uint8_t {
 
-template<typename Task>
-class JobDecl : public IJobDecl {
+        HIGH = 1, NORMAL, LOW, COUNT
+    };
 
-public:
-    JobDecl(Task &&task_) : task {std::forward<Task>(task_)} {}
-
-    void run() override {
-
-        task();
-    }
 
 private:
-    Task task;
-};
+
+    class IJobDecl {
+
+        public:
+            virtual void run() = 0;
+    };
 
 
-class JobSystem {
+    template<typename Task>
+    class JobDecl : public IJobDecl {
+
+        public:
+            JobDecl(Task &&task) : mTask {std::forward<Task>(task)} {}
+
+            void run() override {
+
+                mTask();
+            }
+
+        private:
+            Task mTask;
+    };
+
 
 public:
 
     static void StartUp(size_t numThreads = 0);
     static void ShutDown();
+    static void ClearJobs();
 
-    ~JobSystem();
+    ~JobSystem();    
 
     template <typename Func, typename... Args>
     static auto Submit(Func&& func, Args&&... args) {
@@ -64,20 +70,17 @@ public:
         Task task(std::move(callable));
         std::future<ResultType> result = task.get_future();
 
-        sInstance->PushJob( std::make_unique<JobDecl<Task>>(std::move(task)) );
+        sInstance->mJobQueue.Push( std::make_unique<JobDecl<Task>>(std::move(task)) );
         
         return result;
     }
+
 
 private:
 
     JobSystem(const size_t numThreads);
 
     void WorkerThread();
-
-    void PushJob(std::unique_ptr<IJobDecl> &&job);
-    bool PopJob(std::unique_ptr<IJobDecl> &out);
-    void ClearJobs();
 
     // job system instance
     static std::unique_ptr<JobSystem> sInstance;
@@ -90,7 +93,5 @@ private:
     std::vector<std::thread> mThreads;
 
     // job queue
-    std::queue<std::unique_ptr<IJobDecl>> mJobQueue;
-    std::mutex mQueueAccess;
-    std::condition_variable mCondVar;
+    ConcurrentQueue<std::unique_ptr<IJobDecl>> mJobQueue;
 };
