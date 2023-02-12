@@ -51,7 +51,8 @@ int main(int argc, char** argv) {
     start = clock.now();
     for (size_t i = 0; i < N; i++)
     {
-        resMulti[i] = JobSystem::Submit(test);
+        size_t p = i % JobSystem::Priority::COUNT;
+        resMulti[i] = JobSystem::Submit(static_cast<JobSystem::Priority>(p), test);
     }
     for (size_t i = 0; i < N; i++)
     {

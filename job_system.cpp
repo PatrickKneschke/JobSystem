@@ -5,12 +5,12 @@
 std::unique_ptr<JobSystem> JobSystem::sInstance = nullptr;
 
 
-JobSystem::JobSystem(const size_t numThreads) : mActive {false}, mNumThreads {numThreads}, mThreads {}, mJobQueue {} {
+JobSystem::JobSystem(const size_t numThreads) : mActive {false}, mNumThreads {numThreads} {
 
     if (mNumThreads == 0)
     {
         mNumThreads = std::max(std::thread::hardware_concurrency(), 2u) - 1u;
-    }    
+    }
 }
 
 
@@ -63,7 +63,15 @@ void JobSystem::WorkerThread() {
     std::unique_ptr<IJobDecl> job;
     while (mActive.load(std::memory_order_acquire))
     {
-        if (mJobQueue.Pop(job))
+        if (mJobQueueHigh.Pop(job))
+        {
+            job->run();
+        }
+        else if (mJobQueueNormal.Pop(job))
+        {
+            job->run();
+        }
+        else if (mJobQueueLow.Pop(job))
         {
             job->run();
         }
@@ -73,5 +81,7 @@ void JobSystem::WorkerThread() {
 
 void JobSystem::ClearJobs() {
 
-    sInstance->mJobQueue.Clear();
+    sInstance->mJobQueueHigh.Clear();
+    sInstance->mJobQueueNormal.Clear();
+    sInstance->mJobQueueLow.Clear();
 }

@@ -20,9 +20,9 @@ class JobSystem {
 
 public:
 
-    enum class Priority : uint8_t {
+    enum Priority : uint8_t {
 
-        HIGH = 1, NORMAL, LOW, COUNT
+        HIGH = 0, NORMAL, LOW, COUNT
     };
 
 
@@ -60,7 +60,7 @@ public:
     ~JobSystem();    
 
     template <typename Func, typename... Args>
-    static auto Submit(Func&& func, Args&&... args) {
+    static auto Submit(const Priority priority, Func&& func, Args&&... args) {
 
         auto callable = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
 
@@ -70,7 +70,20 @@ public:
         Task task(std::move(callable));
         std::future<ResultType> result = task.get_future();
 
-        sInstance->mJobQueue.Push( std::make_unique<JobDecl<Task>>(std::move(task)) );
+        switch (priority)
+        {
+        case Priority::HIGH:
+            sInstance->mJobQueueHigh.Push( std::make_unique<JobDecl<Task>>(std::move(task)) );
+            break;
+        case Priority::NORMAL:
+            sInstance->mJobQueueNormal.Push( std::make_unique<JobDecl<Task>>(std::move(task)) );
+            break;
+        case Priority::LOW:
+            sInstance->mJobQueueHigh.Push( std::make_unique<JobDecl<Task>>(std::move(task)) );
+            break;        
+        default:
+            break;
+        }
         
         return result;
     }
@@ -92,6 +105,8 @@ private:
     size_t mNumThreads;
     std::vector<std::thread> mThreads;
 
-    // job queue
-    ConcurrentQueue<std::unique_ptr<IJobDecl>> mJobQueue;
+    // job queues
+    ConcurrentQueue<std::unique_ptr<IJobDecl>> mJobQueueHigh;
+    ConcurrentQueue<std::unique_ptr<IJobDecl>> mJobQueueNormal;
+    ConcurrentQueue<std::unique_ptr<IJobDecl>> mJobQueueLow;
 };
